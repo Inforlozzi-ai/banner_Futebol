@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const today = new Date().toISOString().split('T')[0];
   const [{ count: totalBanners }, { count: totalGames }, { data: todayBanner }, { data: lastBanner }] =

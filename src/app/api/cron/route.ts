@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { runDailyBannerJob } from '@/lib/banner-service';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   const auth = request.headers.get('authorization');
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { runDailyBannerJob } from '@/lib/banner-service';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({})) as { date?: string; secret?: string };
