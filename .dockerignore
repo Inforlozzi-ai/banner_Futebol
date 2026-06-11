@@ -1,0 +1,10 @@
+node_modules
+.next
+npm-debug.log*
+.env
+.env.local
+.env.*.local
+public/banners/*.png
+public/banners/*.jpg
+.DS_Store
+*.tsbuildinfo
