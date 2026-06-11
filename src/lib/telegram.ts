@@ -13,21 +13,28 @@ function getBot() {
   return _bot;
 }
 
-export async function sendBannerToTelegram(imagePath: string, date: Date): Promise<string | null> {
+export async function sendBannerToTelegram(
+  imagePath: string,
+  date: Date,
+  eventsCount?: number
+): Promise<string | null> {
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!chatId) throw new Error('TELEGRAM_CHAT_ID não configurado');
 
   const bot = getBot();
   const dateFmt = format(date, "dd/MM/yyyy \- EEEE", { locale: ptBR });
+  const total = eventsCount ? ` \| ${eventsCount} eventos` : '';
 
   const caption = [
-    `📅 *Jogos de Hoje \- ${dateFmt}*`,
+    `🏆 *Esportes de Hoje \- ${dateFmt}*${total}`,
     '',
-    '⚽ Confira os principais confrontos do dia\.',
+    '⚽ Futebol • 🏀 Basquete • 🏐 Vôlei • 🥊 Lutas',
+    '',
+    'Confira os principais confrontos do dia\.',
     '',
     '🔵 *Inforlozzi*',
     '',
-    '\#Futebol \#JogosDeHoje \#Inforlozzi',
+    '\#Esportes \#Futebol \#Basquete \#JogosDeHoje \#Inforlozzi',
   ].join('\n');
 
   const imageBuffer = fs.readFileSync(imagePath);
