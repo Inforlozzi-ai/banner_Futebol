@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: banner-futebol
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    env_file:
+      - .env.local
+    volumes:
+      - ./public/banners:/app/public/banners
+    environment:
+      - TZ=America/Sao_Paulo
+    networks:
+      - banner-net
+
+  cron:
+    build: .
+    container_name: banner-cron
+    command: npx tsx src/scripts/cron.ts
+    restart: unless-stopped
+    env_file:
+      - .env.local
+    volumes:
+      - ./public/banners:/app/public/banners
+    environment:
+      - TZ=America/Sao_Paulo
+    networks:
+      - banner-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: banner-nginx
+    restart: unless-stopped
+    ports:
+      - '80:80'
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app
+    networks:
+      - banner-net
+
+networks:
+  banner-net:
+    driver: bridge

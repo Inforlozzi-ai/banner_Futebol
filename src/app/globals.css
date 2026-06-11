@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { background: #080d1a; }
+
+.card-glass {
+  background: rgba(13, 21, 48, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(26, 48, 96, 0.5);
+}
