@@ -59,8 +59,8 @@ export async function runDailyBannerJob(dateStr?: string): Promise<{
   let storiesPath: string | undefined;
   let postFilePath: string;
   try {
-    const post    = await generateBanner({ events, date: targetDate, format: 'post', title: '🏆 ESPORTES DE HOJE' });
-    const stories = await generateBanner({ events, date: targetDate, format: 'stories', title: '🏆 ESPORTES DE HOJE' });
+    const post    = await generateBanner({ events, date: targetDate, format: 'post', title: '\uD83C\uDFC6 ESPORTES DE HOJE' });
+    const stories = await generateBanner({ events, date: targetDate, format: 'stories', title: '\uD83C\uDFC6 ESPORTES DE HOJE' });
     postPath     = post.publicPath;
     postFilePath = post.filePath;
     storiesPath  = stories.publicPath;
@@ -105,7 +105,7 @@ export async function runDailyBannerJob(dateStr?: string): Promise<{
 
   return {
     success: true,
-    message: `✅ Banner gerado! ${events.length} eventos (${Object.entries(bySort).map(([k,v]) => `${k}:${v}`).join(', ')})`,
-    data: { postPath, storiesPath, eventsCount: events.length, bySort },
+    message: `\u2705 Banner gerado! ${events.length} eventos (${Object.entries(bySport).map(([k,v]) => `${k}:${v}`).join(', ')})`,
+    data: { postPath, storiesPath, eventsCount: events.length, bySport },
   };
 }
