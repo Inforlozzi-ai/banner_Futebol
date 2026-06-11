@@ -1,12 +1,16 @@
 import axios from 'axios';
 
-const api = axios.create({
-  baseURL: `https://${process.env.FOOTBALL_API_HOST}`,
-  headers: {
-    'x-rapidapi-key': process.env.FOOTBALL_API_KEY!,
-    'x-rapidapi-host': process.env.FOOTBALL_API_HOST!,
-  },
-});
+function getApi() {
+  const key = process.env.FOOTBALL_API_KEY;
+  const host = 'v3.football.api-sports.io';
+  return axios.create({
+    baseURL: `https://${host}`,
+    headers: {
+      'x-rapidapi-key': key ?? '',
+      'x-rapidapi-host': host,
+    },
+  });
+}
 
 export const PRIORITY_LEAGUES = [
   { id: 71,  name: 'Brasileirão Série A', priority: 1 },
@@ -39,6 +43,7 @@ export interface Game {
 }
 
 export async function fetchGamesToday(date?: string): Promise<Game[]> {
+  const api = getApi();
   const { formatInTimeZone } = await import('date-fns-tz');
   const targetDate = date ?? formatInTimeZone(new Date(), 'America/Sao_Paulo', 'yyyy-MM-dd');
 
