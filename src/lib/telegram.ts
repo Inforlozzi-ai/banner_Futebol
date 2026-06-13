@@ -7,7 +7,7 @@ let _bot: TelegramBot | null = null;
 function getBot() {
   if (!_bot) {
     const token = process.env.TELEGRAM_BOT_TOKEN;
-    if (!token) throw new Error('TELEGRAM_BOT_TOKEN não configurado');
+    if (!token) throw new Error('TELEGRAM_BOT_TOKEN nao configurado');
     _bot = new TelegramBot(token);
   }
   return _bot;
@@ -19,28 +19,18 @@ export async function sendBannerToTelegram(
   eventsCount?: number
 ): Promise<string | null> {
   const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!chatId) throw new Error('TELEGRAM_CHAT_ID não configurado');
+  if (!chatId) throw new Error('TELEGRAM_CHAT_ID nao configurado');
 
   const bot = getBot();
-  const dateFmt = format(date, "dd/MM/yyyy \- EEEE", { locale: ptBR });
-  const total = eventsCount ? ` \| ${eventsCount} eventos` : '';
+  const dateFmt = format(date, "EEEE, dd/MM/yyyy", { locale: ptBR });
+  const total = eventsCount ? ` - ${eventsCount} jogos` : '';
 
-  const caption = [
-    `🏆 *Esportes de Hoje \- ${dateFmt}*${total}`,
-    '',
-    '⚽ Futebol • 🏀 Basquete • 🏐 Vôlei • 🥊 Lutas',
-    '',
-    'Confira os principais confrontos do dia\.',
-    '',
-    '🔵 *Inforlozzi*',
-    '',
-    '\#Esportes \#Futebol \#Basquete \#JogosDeHoje \#Inforlozzi',
-  ].join('\n');
+  const caption = `<b>Jogos de Hoje${total}</b>\n${dateFmt}\n\nConfira os principais confrontos do dia.\n\n<b>@Inforlozzi</b> - Esportes ao vivo 24h\n#JogosDeHoje #Futebol #Inforlozzi`;
 
   const imageBuffer = fs.readFileSync(imagePath);
   const msg = await bot.sendPhoto(chatId, imageBuffer, {
     caption,
-    parse_mode: 'MarkdownV2',
+    parse_mode: 'HTML',
   });
 
   return String(msg.message_id);

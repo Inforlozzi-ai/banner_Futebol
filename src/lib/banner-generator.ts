@@ -222,8 +222,29 @@ export async function generateBanner(options: {
   title?: string;
 }): Promise<{ filePath: string; publicPath: string }> {
   const W = 1080;
-  const H = options.format === 'stories' ? 1920 : 1350;
   const title = options.title ?? '🏆 ESPORTES DE HOJE';
+  const isStories = options.format === 'stories';
+
+  const pad = 20;
+  const cW = W - pad * 2;
+  const headerH = 175;
+  const footerH = 100;
+  const gap = 8;
+  const maxEvents = Math.min(options.events.length, isStories ? 16 : 12);
+
+  // Calcular altura dinâmica baseada nos eventos
+  const sportsUsed = [...new Set(options.events.slice(0, maxEvents).map(e => e.sport))];
+  const dividersH = sportsUsed.length * 40;
+
+  // Altura de cada card: mínimo 90px, máximo 120px
+  // Para poucos jogos (<=5), cards maiores para preencher melhor
+  const targetH = isStories ? 1920 : 1350;
+  const availableForCards = targetH - headerH - footerH - dividersH - pad * 2;
+  const cH = Math.max(90, Math.min(130, Math.floor((availableForCards - gap * (maxEvents - 1)) / maxEvents)));
+
+  // Altura total dinâmica: usa targetH como mínimo
+  const contentH = dividersH + (cH + gap) * maxEvents + pad * 2;
+  const H = Math.max(targetH, headerH + footerH + contentH);
 
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
@@ -232,44 +253,26 @@ export async function generateBanner(options: {
   drawHeader(ctx, W, options.date, title);
   drawFooter(ctx, W, H);
 
-  const headerH = 175;
-  const footerH = 100;
-  const usableH = H - headerH - footerH;
-  const pad = 20;
-  const cW = W - pad * 2;
-  const maxEvents = Math.min(options.events.length, options.format === 'stories' ? 16 : 12);
-
-  // Agrupar por esporte para colocar separadores
   let currentSport = '';
-  let sportCount = 0;
-  // Calcular espaço: cada separador ocupa 36px, cada card ocupa proporcional ao restante
-  const sportsUsed = [...new Set(options.events.slice(0, maxEvents).map(e => e.sport))];
-  const dividersH = sportsUsed.length * 36;
-  const cH = Math.min(86, Math.floor((usableH - dividersH - pad) / maxEvents) - 6);
-  const gap = 6;
-
-  let curY = headerH + gap;
+  let curY = headerH + pad;
   let cardIdx = 0;
 
   for (let i = 0; i < maxEvents; i++) {
     const event = options.events[i];
 
-    // Separador de esporte
     if (event.sport !== currentSport) {
-      if (curY + 28 + cH > H - footerH - gap) break;
       drawSportDivider(ctx, pad, curY, cW, event.sport, event.sport_label);
-      curY += 34;
+      curY += 40;
       currentSport = event.sport;
     }
 
-    if (curY + cH > H - footerH - gap) break;
     await drawEventCard(ctx, event, pad, curY, cW, cH, cardIdx);
     curY += cH + gap;
     cardIdx++;
   }
 
   const ds = format(options.date, 'yyyy-MM-dd');
-  const suf = options.format === 'stories' ? '_stories' : '_post';
+  const suf = isStories ? '_stories' : '_post';
   const fileName = `banner_${ds}${suf}.png`;
   const filePath = path.join(BANNERS_DIR, fileName);
   fs.writeFileSync(filePath, canvas.toBuffer('image/png'));

@@ -13,8 +13,8 @@ function getApi() {
 }
 
 export const PRIORITY_LEAGUES = [
-  { id: 71,  name: 'Brasileirão Série A', priority: 1 },
-  { id: 72,  name: 'Brasileirão Série B', priority: 2 },
+  { id: 71,  name: 'Brasileirao Serie A', priority: 1 },
+  { id: 72,  name: 'Brasileirao Serie B', priority: 2 },
   { id: 73,  name: 'Copa do Brasil',      priority: 3 },
   { id: 13,  name: 'Libertadores',        priority: 4 },
   { id: 11,  name: 'Sul-Americana',       priority: 5 },
@@ -25,6 +25,16 @@ export const PRIORITY_LEAGUES = [
   { id: 61,  name: 'Ligue 1',             priority: 10 },
   { id: 78,  name: 'Bundesliga',          priority: 11 },
 ];
+
+const CALENDAR_YEAR_LEAGUES = [71, 72, 73, 13, 11];
+
+function getSeasonForLeague(leagueId: number): number {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  if (CALENDAR_YEAR_LEAGUES.includes(leagueId)) return year;
+  return month >= 8 ? year : year - 1;
+}
 
 export interface Game {
   external_id: number;
@@ -46,13 +56,13 @@ export async function fetchGamesToday(date?: string): Promise<Game[]> {
   const api = getApi();
   const { formatInTimeZone } = await import('date-fns-tz');
   const targetDate = date ?? formatInTimeZone(new Date(), 'America/Sao_Paulo', 'yyyy-MM-dd');
-
   const allGames: Game[] = [];
 
   for (const league of PRIORITY_LEAGUES) {
     try {
+      const season = getSeasonForLeague(league.id);
       const res = await api.get('/fixtures', {
-        params: { date: targetDate, league: league.id, season: new Date().getFullYear() },
+        params: { date: targetDate, league: league.id, season },
       });
       const fixtures = res.data.response ?? [];
       for (const f of fixtures) {
@@ -76,13 +86,12 @@ export async function fetchGamesToday(date?: string): Promise<Game[]> {
       }
       await new Promise(r => setTimeout(r, 350));
     } catch (err) {
-      console.error(`Erro ao buscar liga ${league.id}:`, err);
+      console.error('Erro liga ' + league.id + ':', err);
     }
   }
 
   allGames.sort((a, b) =>
     new Date(a.datetime_brasilia).getTime() - new Date(b.datetime_brasilia).getTime()
   );
-
   return allGames;
 }

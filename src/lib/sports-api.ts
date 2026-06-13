@@ -1,35 +1,11 @@
 import axios from 'axios';
+import { formatInTimeZone } from 'date-fns-tz';
 
-// ============================================
-// CLIENTES DE API
-// ============================================
-const footballApi = axios.create({
-  baseURL: `https://${process.env.FOOTBALL_API_HOST}`,
-  headers: {
-    'x-rapidapi-key': process.env.FOOTBALL_API_KEY!,
-    'x-rapidapi-host': process.env.FOOTBALL_API_HOST!,
-  },
+const api = axios.create({
+  baseURL: 'https://api.football-data.org/v4',
+  headers: { 'X-Auth-Token': process.env.FOOTBALL_API_KEY! },
 });
 
-const basketballApi = axios.create({
-  baseURL: 'https://v1.basketball.api-sports.io',
-  headers: {
-    'x-rapidapi-key': process.env.FOOTBALL_API_KEY!, // mesma key
-    'x-rapidapi-host': 'v1.basketball.api-sports.io',
-  },
-});
-
-const mmaApi = axios.create({
-  baseURL: 'https://v1.mma.api-sports.io',
-  headers: {
-    'x-rapidapi-key': process.env.FOOTBALL_API_KEY!,
-    'x-rapidapi-host': 'v1.mma.api-sports.io',
-  },
-});
-
-// ============================================
-// TIPO UNIFICADO
-// ============================================
 export type Sport = 'football' | 'basketball' | 'volleyball' | 'mma';
 
 export interface SportEvent {
@@ -47,206 +23,76 @@ export interface SportEvent {
   league_id: number;
   country: string;
   status: string;
-  sport_label: string;   // ex: '⚽ Futebol'
-  sport_emoji: string;   // ex: '⚽'
+  sport_label: string;
+  sport_emoji: string;
 }
 
-// ============================================
-// CAMPEONATOS PRIORITÁRIOS
-// ============================================
-export const FOOTBALL_LEAGUES = [
-  { id: 71,  name: 'Brasileirão Série A' },
-  { id: 73,  name: 'Copa do Brasil' },
-  { id: 13,  name: 'Libertadores' },
-  { id: 11,  name: 'Sul-Americana' },
-  { id: 2,   name: 'Champions League' },
-  { id: 39,  name: 'Premier League' },
-  { id: 140, name: 'La Liga' },
-  { id: 135, name: 'Serie A Italiana' },
+const COMPETITIONS = [
+  { code: 'WC',  name: 'Copa do Mundo',      logo: 'https://crests.football-data.org/wm26.png',  country: 'World',   id: 2000 },
+  { code: 'BSA', name: 'Brasileirao Serie A', logo: 'https://crests.football-data.org/BSA.png',   country: 'Brazil',  id: 2013 },
+  { code: 'CL',  name: 'Champions League',   logo: 'https://crests.football-data.org/CL.png',    country: 'Europe',  id: 2001 },
+  { code: 'PL',  name: 'Premier League',     logo: 'https://crests.football-data.org/PL.png',    country: 'England', id: 2021 },
+  { code: 'PD',  name: 'La Liga',            logo: 'https://crests.football-data.org/PD.png',    country: 'Spain',   id: 2014 },
+  { code: 'SA',  name: 'Serie A Italiana',   logo: 'https://crests.football-data.org/SA.png',    country: 'Italy',   id: 2019 },
+  { code: 'FL1', name: 'Ligue 1',            logo: 'https://crests.football-data.org/FL1.png',   country: 'France',  id: 2015 },
+  { code: 'BL1', name: 'Bundesliga',         logo: 'https://crests.football-data.org/BL1.png',   country: 'Germany', id: 2002 },
+  { code: 'EC',  name: 'Eurocopa',           logo: 'https://crests.football-data.org/EC.png',    country: 'Europe',  id: 2018 },
+  { code: 'CLI', name: 'Libertadores',       logo: 'https://crests.football-data.org/CLI.png',   country: 'South America', id: 2152 },
 ];
 
-export const BASKETBALL_LEAGUES = [
-  { id: 12,  name: 'NBA' },
-  { id: 28,  name: 'NBB (Brasil)' },
-  { id: 120, name: 'EuroLeague' },
-  { id: 116, name: 'FIBA World Cup' },
-];
+function mapStatus(s: string): string {
+  const map: Record<string, string> = {
+    SCHEDULED: 'NS', TIMED: 'NS', IN_PLAY: '1H', PAUSED: 'HT',
+    FINISHED: 'FT', POSTPONED: 'PST', SUSPENDED: 'SUSP', CANCELLED: 'CANC', LIVE: 'LIVE',
+  };
+  return map[s] ?? s;
+}
 
-export const VOLLEYBALL_LEAGUES = [
-  { id: 5,  name: 'Superliga Masculina' },
-  { id: 6,  name: 'Superliga Feminina' },
-  { id: 1,  name: 'Liga das Nações' },
-];
-
-const SPORT_META: Record<Sport, { emoji: string; label: string }> = {
-  football:   { emoji: '⚽', label: '⚽ Futebol' },
-  basketball: { emoji: '🏀', label: '🏀 Basquete' },
-  volleyball: { emoji: '🏐', label: '🏐 Vôlei' },
-  mma:        { emoji: '🥊', label: '🥊 Lutas' },
-};
-
-// ============================================
-// HELPER: formatar data Brasília
-// ============================================
-async function toBrasilia(utcStr: string): Promise<string> {
-  const { formatInTimeZone } = await import('date-fns-tz');
+function toBrasilia(utcStr: string): string {
   return formatInTimeZone(new Date(utcStr), 'America/Sao_Paulo', "yyyy-MM-dd'T'HH:mm:ssxxx");
 }
 
 async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
-// ============================================
-// FUTEBOL
-// ============================================
 export async function fetchFootballEvents(date: string): Promise<SportEvent[]> {
   const events: SportEvent[] = [];
-  for (const league of FOOTBALL_LEAGUES) {
+  for (const comp of COMPETITIONS) {
     try {
-      const res = await footballApi.get('/fixtures', {
-        params: { date, league: league.id, season: new Date().getFullYear() },
+      const res = await api.get(`/competitions/${comp.code}/matches`, {
+        params: { dateFrom: date, dateTo: date },
       });
-      for (const f of res.data.response ?? []) {
+      for (const m of res.data.matches ?? []) {
         events.push({
-          external_id:       `football_${f.fixture.id}`,
+          external_id:       `football_${m.id}`,
           sport:             'football',
-          datetime_utc:      f.fixture.date,
-          datetime_brasilia: await toBrasilia(f.fixture.date),
+          datetime_utc:      m.utcDate,
+          datetime_brasilia: toBrasilia(m.utcDate),
           date,
-          home_team:  f.teams.home.name,
-          away_team:  f.teams.away.name,
-          home_logo:  f.teams.home.logo ?? '',
-          away_logo:  f.teams.away.logo ?? '',
-          league:     f.league.name,
-          league_logo: f.league.logo ?? '',
-          league_id:  f.league.id,
-          country:    f.league.country,
-          status:     f.fixture.status.short,
-          sport_label: SPORT_META.football.label,
-          sport_emoji: SPORT_META.football.emoji,
+          home_team:   m.homeTeam?.shortName ?? m.homeTeam?.name ?? 'Casa',
+          away_team:   m.awayTeam?.shortName ?? m.awayTeam?.name ?? 'Fora',
+          home_logo:   m.homeTeam?.crest ?? '',
+          away_logo:   m.awayTeam?.crest ?? '',
+          league:      comp.name,
+          league_logo: comp.logo,
+          league_id:   comp.id,
+          country:     comp.country,
+          status:      mapStatus(m.status),
+          sport_label: 'Futebol',
+          sport_emoji: '',
         });
       }
       await sleep(300);
-    } catch (err) { console.error(`Football liga ${league.id}:`, err); }
-  }
-  return events;
-}
-
-// ============================================
-// BASQUETE
-// ============================================
-export async function fetchBasketballEvents(date: string): Promise<SportEvent[]> {
-  const events: SportEvent[] = [];
-  for (const league of BASKETBALL_LEAGUES) {
-    try {
-      const res = await basketballApi.get('/games', {
-        params: { date, league: league.id, season: `${new Date().getFullYear()-1}-${new Date().getFullYear()}` },
-      });
-      for (const g of res.data.response ?? []) {
-        const utc = g.date.start;
-        events.push({
-          external_id:       `basketball_${g.id}`,
-          sport:             'basketball',
-          datetime_utc:      utc,
-          datetime_brasilia: await toBrasilia(utc),
-          date,
-          home_team:  g.teams.home.name,
-          away_team:  g.teams.visitors.name,
-          home_logo:  g.teams.home.logo ?? '',
-          away_logo:  g.teams.visitors.logo ?? '',
-          league:     g.league.name,
-          league_logo: g.league.logo ?? '',
-          league_id:  g.league.id,
-          country:    g.country.name ?? '',
-          status:     g.status.short,
-          sport_label: SPORT_META.basketball.label,
-          sport_emoji: SPORT_META.basketball.emoji,
-        });
-      }
-      await sleep(300);
-    } catch (err) { console.error(`Basketball liga ${league.id}:`, err); }
-  }
-  return events;
-}
-
-// ============================================
-// VÔLEI (API-Sports volleyball)
-// ============================================
-export async function fetchVolleyballEvents(date: string): Promise<SportEvent[]> {
-  const api = axios.create({
-    baseURL: 'https://v1.volleyball.api-sports.io',
-    headers: {
-      'x-rapidapi-key': process.env.FOOTBALL_API_KEY!,
-      'x-rapidapi-host': 'v1.volleyball.api-sports.io',
-    },
-  });
-  const events: SportEvent[] = [];
-  for (const league of VOLLEYBALL_LEAGUES) {
-    try {
-      const res = await api.get('/games', {
-        params: { date, league: league.id, season: new Date().getFullYear() },
-      });
-      for (const g of res.data.response ?? []) {
-        const utc = g.date;
-        events.push({
-          external_id:       `volleyball_${g.id}`,
-          sport:             'volleyball',
-          datetime_utc:      utc,
-          datetime_brasilia: await toBrasilia(utc),
-          date,
-          home_team:  g.teams.home.name,
-          away_team:  g.teams.away.name,
-          home_logo:  g.teams.home.logo ?? '',
-          away_logo:  g.teams.away.logo ?? '',
-          league:     g.league.name,
-          league_logo: g.league.logo ?? '',
-          league_id:  g.league.id,
-          country:    g.country.name ?? '',
-          status:     g.status.short ?? 'NS',
-          sport_label: SPORT_META.volleyball.label,
-          sport_emoji: SPORT_META.volleyball.emoji,
-        });
-      }
-      await sleep(300);
-    } catch (err) { console.error(`Volleyball liga ${league.id}:`, err); }
-  }
-  return events;
-}
-
-// ============================================
-// LUTAS (MMA)
-// ============================================
-export async function fetchMMAEvents(date: string): Promise<SportEvent[]> {
-  const events: SportEvent[] = [];
-  try {
-    const res = await mmaApi.get('/fights', { params: { date } });
-    for (const f of res.data.response ?? []) {
-      const utc = f.date;
-      events.push({
-        external_id:       `mma_${f.id}`,
-        sport:             'mma',
-        datetime_utc:      utc,
-        datetime_brasilia: await toBrasilia(utc),
-        date,
-        home_team:  f.fighters?.first?.name ?? 'Fighter 1',
-        away_team:  f.fighters?.second?.name ?? 'Fighter 2',
-        home_logo:  f.fighters?.first?.image ?? '',
-        away_logo:  f.fighters?.second?.image ?? '',
-        league:     f.event?.name ?? 'MMA Event',
-        league_logo: f.event?.image ?? '',
-        league_id:  f.event?.id ?? 0,
-        country:    f.country?.name ?? '',
-        status:     f.status ?? 'NS',
-        sport_label: SPORT_META.mma.label,
-        sport_emoji: SPORT_META.mma.emoji,
-      });
+    } catch (err: any) {
+      console.error(`Erro ${comp.code}:`, err?.response?.data ?? err.message);
     }
-  } catch (err) { console.error('MMA events:', err); }
+  }
   return events;
 }
 
-// ============================================
-// BUSCA TODOS OS ESPORTES
-// ============================================
+export async function fetchBasketballEvents(_date: string): Promise<SportEvent[]> { return []; }
+export async function fetchVolleyballEvents(_date: string): Promise<SportEvent[]> { return []; }
+export async function fetchMMAEvents(_date: string): Promise<SportEvent[]> { return []; }
+
 export async function fetchAllSportsEvents(date: string): Promise<SportEvent[]> {
   const [football, basketball, volleyball, mma] = await Promise.allSettled([
     fetchFootballEvents(date),
@@ -254,18 +100,12 @@ export async function fetchAllSportsEvents(date: string): Promise<SportEvent[]> 
     fetchVolleyballEvents(date),
     fetchMMAEvents(date),
   ]);
-
   const all: SportEvent[] = [
     ...(football.status   === 'fulfilled' ? football.value   : []),
     ...(basketball.status === 'fulfilled' ? basketball.value : []),
     ...(volleyball.status === 'fulfilled' ? volleyball.value : []),
     ...(mma.status        === 'fulfilled' ? mma.value        : []),
   ];
-
-  // Ordenar por horário
-  all.sort((a, b) =>
-    new Date(a.datetime_brasilia).getTime() - new Date(b.datetime_brasilia).getTime()
-  );
-
+  all.sort((a, b) => new Date(a.datetime_brasilia).getTime() - new Date(b.datetime_brasilia).getTime());
   return all;
 }
