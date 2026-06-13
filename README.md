@@ -1,170 +1,196 @@
-# 🏟️ Banner Futebol - Inforlozzi
+# 🏆 Inforlozzi Banner
 
-Sistema automático de geração e publicação de banners diários de futebol para o Telegram.
+Sistema automático de geração e publicação de banners diários de esportes no Telegram.
 
-Todos os dias às 06h, o sistema busca os jogos do dia, gera um banner personalizado com a identidade visual Inforlozzi e publica automaticamente no seu canal do Telegram.
-
----
-
-## ✅ O que você vai precisar antes de começar
-
-Antes de instalar, garanta que você tem:
-
-- Um **VPS com Ubuntu 20.04 ou superior** (acesso root via SSH)
-- Uma conta gratuita no **[Supabase](https://supabase.com)** (banco de dados)
-- Uma chave gratuita na **[API-Football](https://www.api-football.com/)** (dados dos jogos)
-- Um **Bot do Telegram** criado via [@BotFather](https://t.me/BotFather)
-- O **ID do canal Telegram** onde os banners serão publicados
+Busca os jogos do dia via **football-data.org**, gera um banner visual com Canvas e envia automaticamente para o Telegram todo dia às **06:00 (Brasília)**.
 
 ---
 
-## 🚀 Instalação Completa (Passo a Passo)
+## ✨ Funcionalidades
 
-### Passo 1 — Conecte no seu VPS via SSH
+- ⚽ Futebol: Copa do Mundo, Brasileirão, Champions, Premier League, La Liga e mais
+- 🖼️ Gera banner `post` (1080×1350) e `stories` (1080×1920)
+- 📱 Envia automaticamente ao Telegram com legenda formatada
+- 🔄 Cron job integrado (06:00 diário)
+- 🐳 Deploy 100% via Docker Compose
+
+---
+
+## 🚀 Instalação Rápida (recomendado)
 
 ```bash
-ssh root@SEU_IP
+curl -fsSL https://raw.githubusercontent.com/Inforlozzi-ai/banner_Futebol/main/install.sh | bash
 ```
 
----
-
-### Passo 2 — Instale o Docker
-
-O projeto roda 100% via Docker. Execute este único comando para instalar:
-
-```bash
-curl -fsSL https://get.docker.com | sh
-```
-
-Verifique se instalou corretamente:
-
-```bash
-docker --version
-docker compose version
-```
-
-> ✅ Deve aparecer algo como `Docker version 24.x.x` e `Docker Compose version v2.x.x`
+O script interativo vai:
+1. Verificar se Docker e Git estão instalados
+2. Clonar o repositório em `/opt/inforlozzi-banner`
+3. Pedir suas credenciais e validar cada uma
+4. Gerar o `.env.local` automaticamente
+5. Fazer o build e subir os containers
+6. Testar e exibir o status final
 
 ---
 
-### Passo 3 — Clone o repositório
+## 📋 Pré-requisitos
+
+| Requisito | Versão mínima | Como instalar |
+|---|---|---|
+| Ubuntu/Debian | 20.04+ | — |
+| Docker | 24+ | `curl -fsSL https://get.docker.com \| bash` |
+| Docker Compose | v2 | Incluído no Docker moderno |
+| Git | qualquer | `apt-get install -y git` |
+
+---
+
+## 🔑 Credenciais necessárias
+
+### 1. Football Data API
+- Acesse [football-data.org/client/register](https://www.football-data.org/client/register)
+- Crie uma conta gratuita
+- Copie sua **API Key** no dashboard
+
+### 2. Telegram Bot
+- No Telegram, fale com [@BotFather](https://t.me/BotFather)
+- Envie `/newbot` e siga as instruções
+- Copie o **Bot Token** (formato: `123456789:AAHxxx...`)
+
+### 3. Telegram Chat ID
+- Para **canal público**: use `@nome_do_canal`
+- Para **canal privado/grupo**: adicione [@userinfobot](https://t.me/userinfobot) ao grupo e ele mostra o ID
+- Para **uso pessoal**: fale com [@userinfobot](https://t.me/userinfobot) — ele retorna seu ID
+
+### 4. Supabase (opcional)
+- Acesse [supabase.com](https://supabase.com) e crie um projeto gratuito
+- Pegue a URL e as chaves em **Settings → API**
+
+---
+
+## 🛠️ Instalação Manual
 
 ```bash
+# 1. Clonar
 git clone https://github.com/Inforlozzi-ai/banner_Futebol.git
 cd banner_Futebol
+
+# 2. Criar .env.local
+cat > .env.local << EOF
+FOOTBALL_API_KEY=sua_key_aqui
+CRON_SECRET=seu_segredo_aqui
+TELEGRAM_BOT_TOKEN=seu_token_aqui
+TELEGRAM_CHAT_ID=seu_chat_id_aqui
+
+# Supabase (opcional)
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+EOF
+
+# 3. Criar pasta de banners
+mkdir -p public/banners
+chown -R 1001:1001 public/banners
+
+# 4. Build e subir
+docker compose up -d --build
+
+# 5. Testar (aguardar 30s após o build)
+curl -s http://127.0.0.1:3000/api/cron \
+  -H "Authorization: Bearer seu_segredo_aqui"
 ```
 
 ---
 
-### Passo 4 — Configure as variáveis de ambiente
+## 🐳 Containers
 
-```bash
-cp .env.example .env.local
-nano .env.local
-```
-
-Preencha cada variável conforme a tabela abaixo:
-
-| Variável | Onde encontrar | Exemplo |
+| Container | Função | Porta |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API → Project URL | `https://xxxx.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API → anon key | `eyJhbGci...` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → service_role key | `eyJhbGci...` |
-| `API_FOOTBALL_KEY` | [api-football.com](https://www.api-football.com/) → Dashboard → API Key | `abc123...` |
-| `TELEGRAM_BOT_TOKEN` | [@BotFather](https://t.me/BotFather) → /newbot → token gerado | `123456:ABC-DEF...` |
-| `TELEGRAM_CHANNEL_ID` | ID do canal (veja dica abaixo) | `-1001234567890` |
-
-> 💡 **Como descobrir o ID do canal Telegram:**
-> Adicione o bot [@userinfobot](https://t.me/userinfobot) ao canal como admin, ele vai te mostrar o ID. O ID de canais sempre começa com `-100`.
-
-Salve o arquivo: `Ctrl+X` → `Y` → `Enter`
+| `banner-futebol` | App Next.js principal | 3000 |
+| `banner-cron` | Executa o cron job diário | — |
+| `banner-nginx` | Proxy reverso | 80 |
 
 ---
 
-### Passo 5 — Configure o banco de dados (Supabase)
+## 📁 Estrutura
 
-1. Acesse [supabase.com](https://supabase.com) → seu projeto
-2. No menu lateral, clique em **SQL Editor**
-3. Clique em **New query**
-4. Abra o arquivo `supabase/migrations/001_init.sql` deste repositório
-5. Cole o conteúdo no editor e clique em **Run**
-
-> ✅ Isso cria todas as tabelas necessárias automaticamente.
+```
+banner_Futebol/
+├── src/
+│   ├── app/
+│   │   └── api/
+│   │       ├── cron/route.ts       # Endpoint do cron
+│   │       └── games/route.ts      # Lista jogos salvos
+│   ├── lib/
+│   │   ├── sports-api.ts           # Busca jogos (football-data.org)
+│   │   ├── banner-generator.ts     # Gera imagem PNG com Canvas
+│   │   ├── telegram.ts             # Envia para o Telegram
+│   │   └── football-api.ts         # Helpers da API
+│   └── scripts/
+│       └── cron.ts                 # Script do cron job
+├── public/banners/                 # Banners gerados
+├── docker-compose.yml
+├── Dockerfile
+├── install.sh                      # Auto instalador
+└── .env.local                      # Credenciais (não commitado)
+```
 
 ---
 
-### Passo 6 — Suba os containers
-
-```bash
-docker compose up -d
-```
-
-Aguarde o build (pode levar 2-5 minutos na primeira vez). Após concluir, verifique:
-
-```bash
-docker compose ps
-```
-
-Deve aparecer os 3 containers com status **Up**:
-- `banner-futebol` — aplicação web
-- `banner-cron` — agendador de envio diário
-- `banner-nginx` — servidor web (porta 80)
-
----
-
-### Passo 7 — Acesse o painel
-
-Abra no navegador:
-
-```
-http://SEU_IP
-```
-
-> Se quiser acessar pela porta direta: `http://SEU_IP:3000`
-
----
-
-## 🔧 Comandos Úteis
+## ⚙️ Comandos úteis
 
 ```bash
 # Ver logs em tempo real
-docker compose logs -f app
+docker logs banner-futebol -f
 
-# Parar tudo
-docker compose down
+# Forçar geração do banner hoje
+curl -s http://127.0.0.1:3000/api/cron \
+  -H "Authorization: Bearer SEU_CRON_SECRET"
 
-# Reiniciar após alterar .env.local
-docker compose down && docker compose up -d
+# Ver jogos salvos
+curl -s http://127.0.0.1:3000/api/games
 
-# Ver status dos containers
-docker compose ps
+# Restart sem rebuild
+docker compose restart
+
+# Rebuild completo
+docker compose down && docker compose up -d --build
+
+# Ver banners gerados
+ls -lh public/banners/
 ```
 
 ---
 
-## ❗ Erros Comuns
+## 🏆 Competições monitoradas
 
-| Erro | Solução |
-|---|---|
-| `docker-compose: command not found` | Use `docker compose` (sem hífen) |
-| `npm: command not found` | Não instale npm — use Docker conforme este guia |
-| Container reiniciando em loop | Verifique os logs: `docker compose logs app` — provavelmente falta variável no `.env.local` |
-| Porta 80 ocupada | Outro serviço está na porta 80. Edite `docker-compose.yml` e mude `"80:80"` para `"8080:80"` |
-
----
-
-## 📋 Stack Técnica
-
-- **Frontend**: Next.js 14 + TypeScript + TailwindCSS
-- **Backend**: Next.js API Routes
-- **Banco**: Supabase (PostgreSQL)
-- **Geração de imagem**: node-canvas
-- **Telegram**: Bot API
-- **Agendamento**: node-cron (06:00 BRT)
-- **Deploy**: Docker + Nginx + VPS
+| Código | Competição | País |
+|---|---|---|
+| WC | FIFA World Cup | Mundial |
+| BSA | Brasileirão Série A | Brasil |
+| CL | UEFA Champions League | Europa |
+| PL | Premier League | Inglaterra |
+| PD | La Liga | Espanha |
+| SA | Serie A | Itália |
+| FL1 | Ligue 1 | França |
+| BL1 | Bundesliga | Alemanha |
+| EC | Eurocopa | Europa |
+| CLI | Copa Libertadores | América do Sul |
 
 ---
 
-## ⚽ API de Futebol
+## 🔧 Variáveis de ambiente
 
-Utiliza [API-Football](https://www.api-football.com/) — plano gratuito inclui **100 requisições/dia**, suficiente para uso normal.
+| Variável | Obrigatória | Descrição |
+|---|---|---|
+| `FOOTBALL_API_KEY` | ✅ Sim | Chave da football-data.org |
+| `CRON_SECRET` | ✅ Sim | Segredo para autenticar o cron |
+| `TELEGRAM_BOT_TOKEN` | ✅ Sim | Token do bot Telegram |
+| `TELEGRAM_CHAT_ID` | ✅ Sim | ID do canal/grupo destino |
+| `NEXT_PUBLIC_SUPABASE_URL` | ❌ Não | URL do projeto Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ❌ Não | Chave anon do Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | ❌ Não | Chave service role do Supabase |
+
+---
+
+## 📄 Licença
+
+Uso privado — Inforlozzi © 2026
