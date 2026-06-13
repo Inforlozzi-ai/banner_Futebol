@@ -9,31 +9,27 @@ import type { SportEvent } from './sports-api';
 const BANNERS_DIR = path.join(process.cwd(), 'public', 'banners');
 if (!fs.existsSync(BANNERS_DIR)) fs.mkdirSync(BANNERS_DIR, { recursive: true });
 
-const C = {
-  bg:     '#080d1a',
-  card:   '#0d1530',
-  card2:  '#0f1938',
-  border: '#1a3060',
-  accent: '#00d4ff',
-  neon:   '#00ff88',
-  yellow: '#ffd700',
-  white:  '#ffffff',
-  gray:   '#8892a4',
-  // Cores por esporte
-  football:   '#00d4ff',
-  basketball: '#ff6b35',
-  volleyball: '#00ff88',
-  mma:        '#ff3366',
+// ─── Mapeamento Canal por Competição ────────────────────────────────────────
+export const CHANNEL_MAP: Record<string, string> = {
+  WC:  'SBT / CazéTV',
+  BSA: 'Sportv',
+  CL:  'TNT / Max',
+  PL:  'ESPN / Star+',
+  PD:  'ESPN / Star+',
+  SA:  'ESPN / Star+',
+  FL1: 'ESPN / Star+',
+  BL1: 'OneFootball',
+  EC:  'SBT / CazéTV',
+  CLI: 'Paramount+',
 };
 
-const SPORT_COLORS: Record<string, string> = {
-  football:   '#00d4ff',
-  basketball: '#ff6b35',
-  volleyball: '#00ff88',
-  mma:        '#ff3366',
-};
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number,
+  w: number, h: number,
+  r: number
+) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.lineTo(x + w - r, y);
@@ -47,174 +43,211 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
-async function drawBg(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  const g = ctx.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, '#060b18');
-  g.addColorStop(0.5, '#080e1e');
-  g.addColorStop(1, '#040810');
+async function tryLoadImage(url: string) {
+  try { return await loadImage(url); } catch { return null; }
+}
+
+function drawGradientBg(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  // Fundo principal: azul escuro → verde → laranja (estilo modelo)
+  const g = ctx.createLinearGradient(0, 0, w, h);
+  g.addColorStop(0,    '#0a3d8f');
+  g.addColorStop(0.35, '#0e7a3a');
+  g.addColorStop(0.65, '#e8a020');
+  g.addColorStop(1,    '#e05010');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
 
-  ctx.strokeStyle = 'rgba(26,48,96,0.2)';
-  ctx.lineWidth = 1;
-  for (let x = 0; x < w; x += 60) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-  }
-  for (let y = 0; y < h; y += 60) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-  }
-
-  const rg = ctx.createRadialGradient(w / 2, 0, 0, w / 2, 0, w * 0.9);
-  rg.addColorStop(0, 'rgba(0,80,180,0.18)');
+  // Brilho central sutil
+  const rg = ctx.createRadialGradient(w * 0.45, h * 0.4, 0, w * 0.45, h * 0.4, w * 0.6);
+  rg.addColorStop(0, 'rgba(255,255,255,0.08)');
   rg.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = rg;
   ctx.fillRect(0, 0, w, h);
-}
 
-function drawHeader(ctx: CanvasRenderingContext2D, w: number, date: Date, title: string) {
-  const H = 170;
-  const g = ctx.createLinearGradient(0, 0, w, H);
-  g.addColorStop(0, '#0a1628');
-  g.addColorStop(1, '#0d2044');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, w, H);
-
-  ctx.fillStyle = C.accent;
-  ctx.fillRect(0, 0, w, 5);
-  ctx.fillStyle = 'rgba(0,212,255,0.25)';
-  ctx.fillRect(0, H - 2, w, 2);
-
-  ctx.textAlign = 'center';
-  ctx.shadowColor = C.accent;
-  ctx.shadowBlur = 24;
-  ctx.fillStyle = C.white;
-  ctx.font = 'bold 56px Arial';
-  ctx.fillText('INFORLOZZI', w / 2, 74);
-  ctx.shadowBlur = 0;
-
-  // linha decorativa
-  const lg = ctx.createLinearGradient(w / 2 - 200, 0, w / 2 + 200, 0);
-  lg.addColorStop(0, 'transparent'); lg.addColorStop(0.3, C.accent);
-  lg.addColorStop(0.7, C.accent);   lg.addColorStop(1, 'transparent');
-  ctx.strokeStyle = lg; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(w/2-200, 86); ctx.lineTo(w/2+200, 86); ctx.stroke();
-
-  // título dinâmico do banner
-  ctx.font = 'bold 28px Arial';
-  ctx.fillStyle = C.neon;
-  ctx.shadowColor = C.neon; ctx.shadowBlur = 12;
-  ctx.fillText(title, w / 2, 128);
-  ctx.shadowBlur = 0;
-
-  const ds = format(date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-  ctx.font = '18px Arial';
-  ctx.fillStyle = C.gray;
-  ctx.fillText(ds.toUpperCase(), w / 2, 158);
-}
-
-// Separador de seção de esporte
-function drawSportDivider(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, sport: string, label: string) {
-  const color = SPORT_COLORS[sport] ?? C.accent;
-  roundRect(ctx, x, y, w, 28, 6);
-  const g = ctx.createLinearGradient(x, y, x + w, y);
-  g.addColorStop(0, color + '33');
-  g.addColorStop(0.5, color + '22');
-  g.addColorStop(1, 'transparent');
-  ctx.fillStyle = g;
+  // Onda decorativa inferior
+  const wg = ctx.createLinearGradient(0, h * 0.85, w, h);
+  wg.addColorStop(0, 'rgba(10,61,143,0.6)');
+  wg.addColorStop(0.5, 'rgba(14,122,58,0.4)');
+  wg.addColorStop(1, 'rgba(224,80,16,0.6)');
+  ctx.fillStyle = wg;
+  ctx.beginPath();
+  ctx.moveTo(0, h * 0.9);
+  ctx.bezierCurveTo(w * 0.25, h * 0.82, w * 0.75, h * 0.95, w, h * 0.85);
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = color + '66';
-  ctx.lineWidth = 1;
+}
+
+async function drawHeader(ctx: CanvasRenderingContext2D, w: number, date: Date) {
+  // Título "PRINCIPAIS JOGOS DO DIA"
+  ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 8;
+
+  // Linha 1 - PRINCIPAIS
+  ctx.font = 'bold 88px Arial';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText('PRINCIPAIS', w / 2, 120);
+
+  // Linha 2 - JOGOS DO DIA (dourado)
+  const gText = ctx.createLinearGradient(w * 0.2, 0, w * 0.8, 0);
+  gText.addColorStop(0, '#FFD700');
+  gText.addColorStop(0.5, '#FFF176');
+  gText.addColorStop(1, '#FFD700');
+  ctx.fillStyle = gText;
+  ctx.font = 'bold 92px Arial';
+  ctx.fillText('JOGOS DO DIA', w / 2, 215);
+
+  ctx.shadowBlur = 0;
+
+  // Caixa da data
+  const dateStr = format(date, "EEEE | dd 'DE' MMMM", { locale: ptBR }).toUpperCase();
+  const boxW = 680;
+  const boxH = 60;
+  const boxX = (w - boxW) / 2;
+  const boxY = 238;
+
+  // Fundo da caixa
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  roundRect(ctx, boxX, boxY, boxW, boxH, 30);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 2;
+  roundRect(ctx, boxX, boxY, boxW, boxH, 30);
   ctx.stroke();
 
-  ctx.textAlign = 'left';
-  ctx.font = 'bold 14px Arial';
-  ctx.fillStyle = color;
-  ctx.fillText(label, x + 12, y + 19);
-}
-
-function drawFooter(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  const fH = 95;
-  const fY = h - fH;
-  const g = ctx.createLinearGradient(0, fY, 0, h);
-  g.addColorStop(0, '#0a1628'); g.addColorStop(1, '#060b18');
-  ctx.fillStyle = g; ctx.fillRect(0, fY, w, fH);
-  ctx.fillStyle = 'rgba(0,212,255,0.4)'; ctx.fillRect(0, fY, w, 2);
-  ctx.textAlign = 'center';
+  // Texto da data
   ctx.font = 'bold 28px Arial';
-  ctx.fillStyle = C.accent;
-  ctx.shadowColor = C.accent; ctx.shadowBlur = 16;
-  ctx.fillText('@Inforlozzi', w / 2, fY + 42);
-  ctx.shadowBlur = 0;
-  ctx.font = '17px Arial'; ctx.fillStyle = C.gray;
-  ctx.fillText('Esportes do Dia • Ao Vivo 24h', w / 2, fY + 72);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.textAlign = 'center';
+  ctx.fillText(dateStr, w / 2, boxY + 41);
 }
 
 async function drawEventCard(
   ctx: CanvasRenderingContext2D,
   event: SportEvent,
+  channel: string,
   x: number, y: number,
-  cW: number, cH: number,
-  idx: number
+  cardW: number, cardH: number
 ) {
-  const sportColor = SPORT_COLORS[event.sport] ?? C.accent;
+  const r = 18;
 
-  roundRect(ctx, x, y, cW, cH, 10);
-  const bg = ctx.createLinearGradient(x, y, x + cW, y + cH);
-  bg.addColorStop(0, idx % 2 === 0 ? C.card : C.card2);
-  bg.addColorStop(1, idx % 2 === 0 ? '#111d40' : '#131f42');
-  ctx.fillStyle = bg; ctx.fill();
+  // Sombra do card
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 4;
 
-  // borda esquerda com cor do esporte
-  ctx.fillStyle = sportColor;
-  ctx.fillRect(x, y + 6, 4, cH - 12);
+  // Fundo branco
+  ctx.fillStyle = '#FFFFFF';
+  roundRect(ctx, x, y, cardW, cardH, r);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
 
-  roundRect(ctx, x, y, cW, cH, 10);
-  ctx.strokeStyle = 'rgba(26,48,96,0.6)'; ctx.lineWidth = 1; ctx.stroke();
+  const logoSz = Math.min(cardH - 20, 70);
+  const centerX = x + cardW * 0.42;
+  const centerY = y + cardH / 2;
 
-  const cx = x + cW / 2;
-  const cy = y + cH / 2;
-  const logoSz = Math.min(44, cH - 18);
+  // ── Logo time da casa (esquerda)
+  const homeImg = await tryLoadImage(event.home_logo);
+  if (homeImg) {
+    ctx.drawImage(homeImg, x + 14, centerY - logoSz / 2, logoSz, logoSz);
+  } else {
+    // Placeholder colorido
+    ctx.fillStyle = '#e8e8e8';
+    roundRect(ctx, x + 14, centerY - logoSz / 2, logoSz, logoSz, 8);
+    ctx.fill();
+  }
 
-  // logos
-  try {
-    if (event.home_logo) {
-      const img = await loadImage(event.home_logo);
-      ctx.drawImage(img, cx - 128, cy - logoSz / 2, logoSz, logoSz);
-    }
-  } catch { /* sem logo */ }
-  try {
-    if (event.away_logo) {
-      const img = await loadImage(event.away_logo);
-      ctx.drawImage(img, cx + 84, cy - logoSz / 2, logoSz, logoSz);
-    }
-  } catch { /* sem logo */ }
+  // ── Nome dos times + horário + canal (centro)
+  const nameX = x + logoSz + 24;
+  const nameMaxW = cardW * 0.42 - logoSz - 30;
 
-  // horário
+  // Nomes dos times em caixa alta negrito
+  const homeShort = event.home_team.toUpperCase();
+  const awayShort = event.away_team.toUpperCase();
+  const matchText = `${homeShort} X\n${awayShort}`;
+  const lines = matchText.split('\n');
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#111111';
+  ctx.font = `bold ${cardH > 110 ? 20 : 17}px Arial`;
+  lines.forEach((line, i) => {
+    ctx.fillText(line, nameX, centerY - 14 + i * 26);
+  });
+
+  // Caixa horário + canal (estilo LCD)
+  const timeBoxX = nameX;
+  const timeBoxY = centerY + 16;
+  const timeBoxW = 170;
+  const timeBoxH = 34;
+
+  ctx.fillStyle = '#111111';
+  roundRect(ctx, timeBoxX, timeBoxY, timeBoxW, timeBoxH, 6);
+  ctx.fill();
+
   const { formatInTimeZone } = require('date-fns-tz');
   const time = formatInTimeZone(new Date(event.datetime_brasilia), 'America/Sao_Paulo', 'HH:mm');
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 13px Arial'; ctx.fillStyle = C.yellow;
-  ctx.fillText(time, cx, cy - 11);
-
-  // VS
-  ctx.font = 'bold 16px Arial'; ctx.fillStyle = sportColor;
-  ctx.fillText('VS', cx, cy + 7);
-
-  // nomes
-  ctx.font = 'bold 13px Arial'; ctx.fillStyle = C.white;
-  ctx.textAlign = 'right';
-  const hn = event.home_team.length > 13 ? event.home_team.substring(0, 12) + '.' : event.home_team;
-  ctx.fillText(hn, cx - 138, cy + 5);
+  ctx.font = 'bold 18px Arial';
+  ctx.fillStyle = '#FFD700';
   ctx.textAlign = 'left';
-  const an = event.away_team.length > 13 ? event.away_team.substring(0, 12) + '.' : event.away_team;
-  ctx.fillText(an, cx + 138, cy + 5);
+  ctx.fillText(`${time}  |  ${channel}`, timeBoxX + 10, timeBoxY + 24);
 
-  // campeonato + esporte
-  ctx.textAlign = 'left'; ctx.font = '10px Arial'; ctx.fillStyle = C.gray;
-  const lg = event.league.length > 34 ? event.league.substring(0, 33) + '...' : event.league;
-  ctx.fillText(lg, x + 18, y + cH - 9);
+  // ── Logo time visitante (direita do centro)
+  const awayImg = await tryLoadImage(event.away_logo);
+  const awayX = x + cardW * 0.58;
+  if (awayImg) {
+    ctx.drawImage(awayImg, awayX, centerY - logoSz / 2, logoSz, logoSz);
+  } else {
+    ctx.fillStyle = '#e8e8e8';
+    roundRect(ctx, awayX, centerY - logoSz / 2, logoSz, logoSz, 8);
+    ctx.fill();
+  }
+
+  // ── Logo da competição (canto direito do card)
+  const compX = x + cardW - logoSz - 14;
+  const leagueImg = await tryLoadImage(event.league_logo);
+  if (leagueImg) {
+    ctx.drawImage(leagueImg, compX, centerY - logoSz / 2, logoSz, logoSz);
+  }
+
+  // Nome da liga (abaixo do logo da competição)
+  const leagueName = event.league.length > 14 ? event.league.substring(0, 13) + '.' : event.league;
+  ctx.font = '11px Arial';
+  ctx.fillStyle = '#666666';
+  ctx.textAlign = 'center';
+  ctx.fillText(leagueName, compX + logoSz / 2, y + cardH - 8);
 }
 
+async function drawMascot(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  const mascotPath = path.join(process.cwd(), 'public', 'assets', 'mascote.png');
+  if (!fs.existsSync(mascotPath)) return;
+  try {
+    const img = await loadImage(mascotPath);
+    const mH = 320;
+    const mW = (img.width / img.height) * mH;
+    ctx.drawImage(img, w - mW - 10, h - mH - 60, mW, mH);
+  } catch { /* mascote nao disponivel */ }
+}
+
+function drawFooter(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(0,0,0,0.6)';
+  ctx.shadowBlur = 10;
+
+  // INFORLOZZI em dourado grande
+  const gFoot = ctx.createLinearGradient(w * 0.2, 0, w * 0.8, 0);
+  gFoot.addColorStop(0, '#FFD700');
+  gFoot.addColorStop(0.5, '#FFF59D');
+  gFoot.addColorStop(1, '#FFD700');
+  ctx.fillStyle = gFoot;
+  ctx.font = 'bold 64px Arial';
+  ctx.fillText('INFORLOZZI', w / 2, h - 28);
+  ctx.shadowBlur = 0;
+}
+
+// ─── Exportação Principal ────────────────────────────────────────────────────
 export async function generateBanner(options: {
   events: SportEvent[];
   date: Date;
@@ -222,55 +255,51 @@ export async function generateBanner(options: {
   title?: string;
 }): Promise<{ filePath: string; publicPath: string }> {
   const W = 1080;
-  const title = options.title ?? '🏆 ESPORTES DE HOJE';
   const isStories = options.format === 'stories';
+  const maxEvents = Math.min(options.events.length, isStories ? 10 : 8);
 
-  const pad = 20;
-  const cW = W - pad * 2;
-  const headerH = 175;
-  const footerH = 100;
-  const gap = 8;
-  const maxEvents = Math.min(options.events.length, isStories ? 16 : 12);
+  // Layout: header ~310px, footer ~90px, cards dinâmicos
+  const HEADER_H = 315;
+  const FOOTER_H = 90;
+  const PAD = 20;
+  const GAP = 12;
+  const CARD_H = 108;
+  const CARD_W = W - PAD * 2;
 
-  // Calcular altura dinâmica baseada nos eventos
-  const sportsUsed = [...new Set(options.events.slice(0, maxEvents).map(e => e.sport))];
-  const dividersH = sportsUsed.length * 40;
-
-  // Altura de cada card: mínimo 90px, máximo 120px
-  // Para poucos jogos (<=5), cards maiores para preencher melhor
-  const targetH = isStories ? 1920 : 1350;
-  const availableForCards = targetH - headerH - footerH - dividersH - pad * 2;
-  const cH = Math.max(90, Math.min(130, Math.floor((availableForCards - gap * (maxEvents - 1)) / maxEvents)));
-
-  // Altura total dinâmica: usa targetH como mínimo
-  const contentH = dividersH + (cH + gap) * maxEvents + pad * 2;
-  const H = Math.max(targetH, headerH + footerH + contentH);
+  // Altura total baseada nos eventos
+  const contentH = maxEvents * (CARD_H + GAP) - GAP;
+  const H = Math.max(
+    isStories ? 1920 : 1350,
+    HEADER_H + contentH + FOOTER_H + PAD * 3
+  );
 
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
 
-  await drawBg(ctx, W, H);
-  drawHeader(ctx, W, options.date, title);
-  drawFooter(ctx, W, H);
+  // 1. Fundo
+  drawGradientBg(ctx, W, H);
 
-  let currentSport = '';
-  let curY = headerH + pad;
-  let cardIdx = 0;
+  // 2. Header
+  await drawHeader(ctx, W, options.date);
 
+  // 3. Cards de jogos
+  let curY = HEADER_H;
   for (let i = 0; i < maxEvents; i++) {
     const event = options.events[i];
-
-    if (event.sport !== currentSport) {
-      drawSportDivider(ctx, pad, curY, cW, event.sport, event.sport_label);
-      curY += 40;
-      currentSport = event.sport;
-    }
-
-    await drawEventCard(ctx, event, pad, curY, cW, cH, cardIdx);
-    curY += cH + gap;
-    cardIdx++;
+    const channel = CHANNEL_MAP[event.league_id?.toString() ?? ''] ||
+                    CHANNEL_MAP[event.league?.replace(/ /g,'').toUpperCase()] ||
+                    'Sportv';
+    await drawEventCard(ctx, event, channel, PAD, curY, CARD_W, CARD_H);
+    curY += CARD_H + GAP;
   }
 
+  // 4. Mascote
+  await drawMascot(ctx, W, H);
+
+  // 5. Footer
+  drawFooter(ctx, W, H);
+
+  // Salvar
   const ds = format(options.date, 'yyyy-MM-dd');
   const suf = isStories ? '_stories' : '_post';
   const fileName = `banner_${ds}${suf}.png`;
