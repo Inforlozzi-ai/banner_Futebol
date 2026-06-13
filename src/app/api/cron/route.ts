@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchTodayGames } from '@/lib/sports-api';
+import { fetchAllSportsEvents } from '@/lib/sports-api';
 import { generateBanner } from '@/lib/banner-generator';
 import { sendBannerToTelegram } from '@/lib/telegram';
 import { ensureMascote } from '@/lib/setup-mascote';
-import { getLeagueIds } from '@/lib/channels';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get('authorization');
@@ -16,9 +17,9 @@ export async function POST(req: NextRequest) {
     // Garantir mascote baixado
     await ensureMascote();
 
-    const leagueIds = getLeagueIds();
     const today = new Date();
-    const events = await fetchTodayGames(leagueIds);
+    const dateStr = format(today, 'yyyy-MM-dd');
+    const events = await fetchAllSportsEvents(dateStr);
 
     if (events.length === 0) {
       return NextResponse.json({ message: 'Nenhum jogo encontrado hoje', games: 0 });
