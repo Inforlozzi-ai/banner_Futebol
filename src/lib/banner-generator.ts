@@ -5,31 +5,12 @@ import fs from 'fs';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { SportEvent } from './sports-api';
+import { getChannelById } from './channels';
 
 const BANNERS_DIR = path.join(process.cwd(), 'public', 'banners');
 if (!fs.existsSync(BANNERS_DIR)) fs.mkdirSync(BANNERS_DIR, { recursive: true });
 
-// ─── Mapeamento Canal por Competição ────────────────────────────────────────
-export const CHANNEL_MAP: Record<string, string> = {
-  WC:  'SBT / CazéTV',
-  BSA: 'Sportv',
-  CL:  'TNT / Max',
-  PL:  'ESPN / Star+',
-  PD:  'ESPN / Star+',
-  SA:  'ESPN / Star+',
-  FL1: 'ESPN / Star+',
-  BL1: 'OneFootball',
-  EC:  'SBT / CazéTV',
-  CLI: 'Paramount+',
-};
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number, y: number,
-  w: number, h: number,
-  r: number
-) {
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.lineTo(x + w - r, y);
@@ -44,84 +25,66 @@ function roundRect(
 }
 
 async function tryLoadImage(url: string) {
+  if (!url) return null;
   try { return await loadImage(url); } catch { return null; }
 }
 
 function drawGradientBg(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  // Fundo principal: azul escuro → verde → laranja (estilo modelo)
   const g = ctx.createLinearGradient(0, 0, w, h);
-  g.addColorStop(0,    '#0a3d8f');
-  g.addColorStop(0.35, '#0e7a3a');
-  g.addColorStop(0.65, '#e8a020');
-  g.addColorStop(1,    '#e05010');
+  g.addColorStop(0,    '#0a4a9f');
+  g.addColorStop(0.4,  '#0e8a40');
+  g.addColorStop(0.75, '#d49020');
+  g.addColorStop(1,    '#c84010');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
 
-  // Brilho central sutil
-  const rg = ctx.createRadialGradient(w * 0.45, h * 0.4, 0, w * 0.45, h * 0.4, w * 0.6);
-  rg.addColorStop(0, 'rgba(255,255,255,0.08)');
+  // Brilho central
+  const rg = ctx.createRadialGradient(w * 0.5, h * 0.35, 0, w * 0.5, h * 0.35, w * 0.7);
+  rg.addColorStop(0, 'rgba(255,255,255,0.10)');
   rg.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = rg;
   ctx.fillRect(0, 0, w, h);
 
-  // Onda decorativa inferior
-  const wg = ctx.createLinearGradient(0, h * 0.85, w, h);
-  wg.addColorStop(0, 'rgba(10,61,143,0.6)');
-  wg.addColorStop(0.5, 'rgba(14,122,58,0.4)');
-  wg.addColorStop(1, 'rgba(224,80,16,0.6)');
-  ctx.fillStyle = wg;
+  // Onda decorativa no rodapé
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
   ctx.beginPath();
-  ctx.moveTo(0, h * 0.9);
-  ctx.bezierCurveTo(w * 0.25, h * 0.82, w * 0.75, h * 0.95, w, h * 0.85);
-  ctx.lineTo(w, h);
-  ctx.lineTo(0, h);
+  ctx.moveTo(0, h * 0.88);
+  ctx.bezierCurveTo(w * 0.3, h * 0.78, w * 0.7, h * 0.94, w, h * 0.84);
+  ctx.lineTo(w, h); ctx.lineTo(0, h);
   ctx.closePath();
   ctx.fill();
 }
 
-async function drawHeader(ctx: CanvasRenderingContext2D, w: number, date: Date) {
-  // Título "PRINCIPAIS JOGOS DO DIA"
+function drawHeader(ctx: CanvasRenderingContext2D, w: number, date: Date) {
   ctx.textAlign = 'center';
-  ctx.shadowColor = 'rgba(0,0,0,0.5)';
-  ctx.shadowBlur = 8;
+  ctx.shadowColor = 'rgba(0,0,0,0.7)';
+  ctx.shadowBlur = 10;
 
-  // Linha 1 - PRINCIPAIS
-  ctx.font = 'bold 88px Arial';
+  ctx.font = 'bold 82px Arial';
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText('PRINCIPAIS', w / 2, 120);
+  ctx.fillText('PRINCIPAIS', w / 2, 104);
 
-  // Linha 2 - JOGOS DO DIA (dourado)
-  const gText = ctx.createLinearGradient(w * 0.2, 0, w * 0.8, 0);
-  gText.addColorStop(0, '#FFD700');
-  gText.addColorStop(0.5, '#FFF176');
-  gText.addColorStop(1, '#FFD700');
+  const gText = ctx.createLinearGradient(w * 0.15, 0, w * 0.85, 0);
+  gText.addColorStop(0, '#FFB300');
+  gText.addColorStop(0.5, '#FFE066');
+  gText.addColorStop(1, '#FFB300');
   ctx.fillStyle = gText;
-  ctx.font = 'bold 92px Arial';
-  ctx.fillText('JOGOS DO DIA', w / 2, 215);
-
+  ctx.font = 'bold 90px Arial';
+  ctx.fillText('JOGOS DO DIA', w / 2, 198);
   ctx.shadowBlur = 0;
 
   // Caixa da data
   const dateStr = format(date, "EEEE | dd 'DE' MMMM", { locale: ptBR }).toUpperCase();
-  const boxW = 680;
-  const boxH = 60;
-  const boxX = (w - boxW) / 2;
-  const boxY = 238;
-
-  // Fundo da caixa
-  ctx.fillStyle = 'rgba(255,255,255,0.15)';
-  roundRect(ctx, boxX, boxY, boxW, boxH, 30);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  const bW = 700, bH = 56, bX = (w - bW) / 2, bY = 218;
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  roundRect(ctx, bX, bY, bW, bH, 28); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
   ctx.lineWidth = 2;
-  roundRect(ctx, boxX, boxY, boxW, boxH, 30);
-  ctx.stroke();
-
-  // Texto da data
-  ctx.font = 'bold 28px Arial';
+  roundRect(ctx, bX, bY, bW, bH, 28); ctx.stroke();
+  ctx.font = 'bold 26px Arial';
   ctx.fillStyle = '#FFFFFF';
   ctx.textAlign = 'center';
-  ctx.fillText(dateStr, w / 2, boxY + 41);
+  ctx.fillText(dateStr, w / 2, bY + 38);
 }
 
 async function drawEventCard(
@@ -131,93 +94,83 @@ async function drawEventCard(
   x: number, y: number,
   cardW: number, cardH: number
 ) {
-  const r = 18;
-
-  // Sombra do card
-  ctx.shadowColor = 'rgba(0,0,0,0.35)';
-  ctx.shadowBlur = 12;
-  ctx.shadowOffsetY = 4;
-
-  // Fundo branco
+  const r = 16;
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur = 14;
+  ctx.shadowOffsetY = 5;
   ctx.fillStyle = '#FFFFFF';
   roundRect(ctx, x, y, cardW, cardH, r);
   ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 
-  const logoSz = Math.min(cardH - 20, 70);
-  const centerX = x + cardW * 0.42;
-  const centerY = y + cardH / 2;
+  // Proporções internas
+  const logoSz = Math.round(cardH * 0.60);
+  const pad    = 18;
+  const midX   = x + cardW / 2;   // centro do card
+  const midY   = y + cardH / 2;
 
-  // ── Logo time da casa (esquerda)
+  // ── Zona esquerda: logo casa (0 a 17% do card)
+  const homeX = x + pad;
   const homeImg = await tryLoadImage(event.home_logo);
   if (homeImg) {
-    ctx.drawImage(homeImg, x + 14, centerY - logoSz / 2, logoSz, logoSz);
+    ctx.drawImage(homeImg, homeX, midY - logoSz / 2, logoSz, logoSz);
   } else {
-    // Placeholder colorido
-    ctx.fillStyle = '#e8e8e8';
-    roundRect(ctx, x + 14, centerY - logoSz / 2, logoSz, logoSz, 8);
+    ctx.fillStyle = '#eeeeee';
+    roundRect(ctx, homeX, midY - logoSz / 2, logoSz, logoSz, 8);
     ctx.fill();
   }
 
-  // ── Nome dos times + horário + canal (centro)
-  const nameX = x + logoSz + 24;
-  const nameMaxW = cardW * 0.42 - logoSz - 30;
+  // ── Zona centro-esquerda: nomes + horário (17% a 55%)
+  const textX = homeX + logoSz + 14;
+  const textMaxW = midX - textX - 10;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#111111';
 
-  // Nomes dos times em caixa alta negrito
+  const fontSize = cardH > 120 ? 19 : 16;
+  ctx.font = `bold ${fontSize}px Arial`;
   const homeShort = event.home_team.toUpperCase();
   const awayShort = event.away_team.toUpperCase();
-  const matchText = `${homeShort} X\n${awayShort}`;
-  const lines = matchText.split('\n');
+  ctx.fillText(homeShort, textX, midY - 10);
+  ctx.fillText(`${awayShort}`, textX, midY + fontSize + 2);
 
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#111111';
-  ctx.font = `bold ${cardH > 110 ? 20 : 17}px Arial`;
-  lines.forEach((line, i) => {
-    ctx.fillText(line, nameX, centerY - 14 + i * 26);
-  });
-
-  // Caixa horário + canal (estilo LCD)
-  const timeBoxX = nameX;
-  const timeBoxY = centerY + 16;
-  const timeBoxW = 170;
-  const timeBoxH = 34;
-
-  ctx.fillStyle = '#111111';
-  roundRect(ctx, timeBoxX, timeBoxY, timeBoxW, timeBoxH, 6);
-  ctx.fill();
-
+  // Caixa horário | canal
   const { formatInTimeZone } = require('date-fns-tz');
   const time = formatInTimeZone(new Date(event.datetime_brasilia), 'America/Sao_Paulo', 'HH:mm');
-  ctx.font = 'bold 18px Arial';
+  const timeLabel = `${time}  |  ${channel}`;
+  const tbY = midY + fontSize + 16;
+  const tbH = 30;
+  // Medir largura do texto para caixa dinâmica
+  ctx.font = `bold 15px Arial`;
+  const tbW = Math.min(ctx.measureText(timeLabel).width + 24, textMaxW + 60);
+  ctx.fillStyle = '#111111';
+  roundRect(ctx, textX, tbY, tbW, tbH, 6);
+  ctx.fill();
   ctx.fillStyle = '#FFD700';
-  ctx.textAlign = 'left';
-  ctx.fillText(`${time}  |  ${channel}`, timeBoxX + 10, timeBoxY + 24);
+  ctx.fillText(timeLabel, textX + 12, tbY + 21);
 
-  // ── Logo time visitante (direita do centro)
+  // ── Zona centro-direita: logo visitante (55% a 72%)
+  const awayX = midX + 30;
   const awayImg = await tryLoadImage(event.away_logo);
-  const awayX = x + cardW * 0.58;
   if (awayImg) {
-    ctx.drawImage(awayImg, awayX, centerY - logoSz / 2, logoSz, logoSz);
+    ctx.drawImage(awayImg, awayX, midY - logoSz / 2, logoSz, logoSz);
   } else {
-    ctx.fillStyle = '#e8e8e8';
-    roundRect(ctx, awayX, centerY - logoSz / 2, logoSz, logoSz, 8);
+    ctx.fillStyle = '#eeeeee';
+    roundRect(ctx, awayX, midY - logoSz / 2, logoSz, logoSz, 8);
     ctx.fill();
   }
 
-  // ── Logo da competição (canto direito do card)
-  const compX = x + cardW - logoSz - 14;
+  // ── Zona direita: logo competição + nome liga (72% a 100%)
+  const compSz = Math.round(cardH * 0.55);
+  const compX  = x + cardW - compSz - pad;
   const leagueImg = await tryLoadImage(event.league_logo);
   if (leagueImg) {
-    ctx.drawImage(leagueImg, compX, centerY - logoSz / 2, logoSz, logoSz);
+    ctx.drawImage(leagueImg, compX, midY - compSz / 2, compSz, compSz);
   }
-
-  // Nome da liga (abaixo do logo da competição)
-  const leagueName = event.league.length > 14 ? event.league.substring(0, 13) + '.' : event.league;
-  ctx.font = '11px Arial';
-  ctx.fillStyle = '#666666';
+  const leagueShort = event.league.length > 13 ? event.league.substring(0, 12) + '.' : event.league;
+  ctx.font = '10px Arial';
+  ctx.fillStyle = '#888888';
   ctx.textAlign = 'center';
-  ctx.fillText(leagueName, compX + logoSz / 2, y + cardH - 8);
+  ctx.fillText(leagueShort, compX + compSz / 2, y + cardH - 6);
 }
 
 async function drawMascot(ctx: CanvasRenderingContext2D, w: number, h: number) {
@@ -225,29 +178,26 @@ async function drawMascot(ctx: CanvasRenderingContext2D, w: number, h: number) {
   if (!fs.existsSync(mascotPath)) return;
   try {
     const img = await loadImage(mascotPath);
-    const mH = 320;
-    const mW = (img.width / img.height) * mH;
-    ctx.drawImage(img, w - mW - 10, h - mH - 60, mW, mH);
-  } catch { /* mascote nao disponivel */ }
+    const mH = 340;
+    const mW = Math.round((img.width / img.height) * mH);
+    ctx.drawImage(img, w - mW - 8, h - mH - 70, mW, mH);
+  } catch { /* ok */ }
 }
 
 function drawFooter(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.textAlign = 'center';
-  ctx.shadowColor = 'rgba(0,0,0,0.6)';
-  ctx.shadowBlur = 10;
-
-  // INFORLOZZI em dourado grande
-  const gFoot = ctx.createLinearGradient(w * 0.2, 0, w * 0.8, 0);
-  gFoot.addColorStop(0, '#FFD700');
-  gFoot.addColorStop(0.5, '#FFF59D');
-  gFoot.addColorStop(1, '#FFD700');
-  ctx.fillStyle = gFoot;
-  ctx.font = 'bold 64px Arial';
-  ctx.fillText('INFORLOZZI', w / 2, h - 28);
+  ctx.shadowColor = 'rgba(0,0,0,0.7)';
+  ctx.shadowBlur = 12;
+  const gf = ctx.createLinearGradient(w * 0.15, 0, w * 0.85, 0);
+  gf.addColorStop(0, '#FFB300');
+  gf.addColorStop(0.5, '#FFE066');
+  gf.addColorStop(1, '#FFB300');
+  ctx.fillStyle = gf;
+  ctx.font = 'bold 62px Arial';
+  ctx.fillText('INFORLOZZI', w / 2, h - 26);
   ctx.shadowBlur = 0;
 }
 
-// ─── Exportação Principal ────────────────────────────────────────────────────
 export async function generateBanner(options: {
   events: SportEvent[];
   date: Date;
@@ -256,55 +206,49 @@ export async function generateBanner(options: {
 }): Promise<{ filePath: string; publicPath: string }> {
   const W = 1080;
   const isStories = options.format === 'stories';
-  const maxEvents = Math.min(options.events.length, isStories ? 10 : 8);
+  const maxEv = Math.min(options.events.length, isStories ? 10 : 8);
 
-  // Layout: header ~310px, footer ~90px, cards dinâmicos
-  const HEADER_H = 315;
-  const FOOTER_H = 90;
-  const PAD = 20;
-  const GAP = 12;
-  const CARD_H = 108;
-  const CARD_W = W - PAD * 2;
+  const HEADER_H = 292;   // espaço reservado para título + data
+  const FOOTER_H = 96;    // INFORLOZZI + margem inferior
+  const PAD_X    = 20;    // margem lateral
+  const PAD_TOP  = 12;    // espaço acima do primeiro card
+  const GAP      = 14;    // espaço entre cards
+  const CARD_W   = W - PAD_X * 2;
 
-  // Altura total baseada nos eventos
-  const contentH = maxEvents * (CARD_H + GAP) - GAP;
-  const H = Math.max(
-    isStories ? 1920 : 1350,
-    HEADER_H + contentH + FOOTER_H + PAD * 3
-  );
+  // Altura mínima do canvas
+  const MIN_H = isStories ? 1920 : 1350;
+
+  // Distribui os cards para ocupar todo o espaço útil
+  const usableH  = MIN_H - HEADER_H - FOOTER_H - PAD_TOP;
+  const CARD_H   = Math.max(100, Math.min(160,
+    Math.floor((usableH - GAP * (maxEv - 1)) / maxEv)
+  ));
+
+  // Altura real do canvas (não menor que MIN_H)
+  const totalCards = HEADER_H + PAD_TOP + maxEv * (CARD_H + GAP) - GAP + FOOTER_H;
+  const H = Math.max(MIN_H, totalCards);
 
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
 
-  // 1. Fundo
   drawGradientBg(ctx, W, H);
+  drawHeader(ctx, W, options.date);
 
-  // 2. Header
-  await drawHeader(ctx, W, options.date);
-
-  // 3. Cards de jogos
-  let curY = HEADER_H;
-  for (let i = 0; i < maxEvents; i++) {
-    const event = options.events[i];
-    const channel = CHANNEL_MAP[event.league_id?.toString() ?? ''] ||
-                    CHANNEL_MAP[event.league?.replace(/ /g,'').toUpperCase()] ||
-                    'Sportv';
-    await drawEventCard(ctx, event, channel, PAD, curY, CARD_W, CARD_H);
+  let curY = HEADER_H + PAD_TOP;
+  for (let i = 0; i < maxEv; i++) {
+    const ev = options.events[i];
+    const ch = getChannelById(ev.league_id);
+    await drawEventCard(ctx, ev, ch, PAD_X, curY, CARD_W, CARD_H);
     curY += CARD_H + GAP;
   }
 
-  // 4. Mascote
   await drawMascot(ctx, W, H);
-
-  // 5. Footer
   drawFooter(ctx, W, H);
 
-  // Salvar
-  const ds = format(options.date, 'yyyy-MM-dd');
+  const ds  = format(options.date, 'yyyy-MM-dd');
   const suf = isStories ? '_stories' : '_post';
   const fileName = `banner_${ds}${suf}.png`;
   const filePath = path.join(BANNERS_DIR, fileName);
   fs.writeFileSync(filePath, canvas.toBuffer('image/png'));
-
   return { filePath, publicPath: `/banners/${fileName}` };
 }
