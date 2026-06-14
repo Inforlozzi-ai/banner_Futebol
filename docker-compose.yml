@@ -3,16 +3,25 @@ services:
     build: .
     container_name: banner-futebol
     restart: unless-stopped
-    ports:
-      - '3000:3000'
+    expose:
+      - '3000'
     env_file:
       - .env.local
     volumes:
       - ./public/banners:/app/public/banners
+      - ./public/assets:/app/public/assets
     environment:
       - TZ=America/Sao_Paulo
     networks:
       - banner-net
+      - traefik_default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.banner.rule=Host(`bannerinforlozzi.alfplaytv.shop`)"
+      - "traefik.http.routers.banner.entrypoints=websecure"
+      - "traefik.http.routers.banner.tls.certresolver=letsencrypt"
+      - "traefik.http.services.banner.loadbalancer.server.port=3000"
+      - "traefik.docker.network=traefik_default"
 
   cron:
     build: .
@@ -23,24 +32,14 @@ services:
       - .env.local
     volumes:
       - ./public/banners:/app/public/banners
+      - ./public/assets:/app/public/assets
     environment:
       - TZ=America/Sao_Paulo
-    networks:
-      - banner-net
-
-  nginx:
-    image: nginx:alpine
-    container_name: banner-nginx
-    restart: unless-stopped
-    ports:
-      - '8080:80'
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - app
     networks:
       - banner-net
 
 networks:
   banner-net:
     driver: bridge
+  traefik_default:
+    external: true
