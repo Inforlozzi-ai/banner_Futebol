@@ -14,14 +14,14 @@ services:
       - TZ=America/Sao_Paulo
     networks:
       - banner-net
-      - traefik_default
+      - minha_rede
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.banner.rule=Host(`bannerinforlozzi.alfplaytv.shop`)"
       - "traefik.http.routers.banner.entrypoints=websecure"
       - "traefik.http.routers.banner.tls.certresolver=letsencrypt"
       - "traefik.http.services.banner.loadbalancer.server.port=3000"
-      - "traefik.docker.network=traefik_default"
+      - "traefik.docker.network=minha_rede"
 
   cron:
     build: .
@@ -41,5 +41,5 @@ services:
 networks:
   banner-net:
     driver: bridge
-  traefik_default:
+  minha_rede:
     external: true
