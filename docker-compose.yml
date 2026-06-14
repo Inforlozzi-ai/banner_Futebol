@@ -1,6 +1,8 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      target: runner
     container_name: banner-futebol
     restart: unless-stopped
     expose:
@@ -24,9 +26,10 @@ services:
       - "traefik.docker.network=minha_rede"
 
   cron:
-    build: .
+    build:
+      context: .
+      target: cron
     container_name: banner-cron
-    command: npx tsx src/scripts/cron.ts
     restart: unless-stopped
     env_file:
       - .env.local
