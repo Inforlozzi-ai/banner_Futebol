@@ -18,7 +18,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-# ---- Runner ----
+# ---- Runner (app Next.js) ----
 FROM node:20-slim AS runner
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 libjpeg62-turbo libpango-1.0-0 libgif7 \
@@ -34,3 +34,14 @@ USER nextjs
 EXPOSE 3000
 ENV PORT 3000
 CMD ["node", "server.js"]
+
+# ---- Cron (roda como root) ----
+FROM node:20-slim AS cron
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcairo2 libjpeg62-turbo libpango-1.0-0 libgif7 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+ENV NODE_ENV production
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+CMD ["npx", "tsx", "src/scripts/cron.ts"]
