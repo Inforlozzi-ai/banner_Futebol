@@ -1,12 +1,16 @@
 import { fetchAllSportsEvents } from './sports-api';
 import { generateBanner } from './banner-generator';
+import type { TemplateId } from './banner-generator';
 import { sendBannerToTelegram } from './telegram';
 import { supabaseAdmin } from './supabase';
 import { log } from './logger';
 import { formatInTimeZone } from 'date-fns-tz';
 import { ensureMascote } from './setup-mascote';
 
-export async function runDailyBannerJob(dateStr?: string): Promise<{
+export async function runDailyBannerJob(
+  dateStr?: string,
+  template: TemplateId = 'classic'
+): Promise<{
   success: boolean;
   message: string;
   data?: object;
@@ -14,12 +18,10 @@ export async function runDailyBannerJob(dateStr?: string): Promise<{
   const brDate = dateStr ?? formatInTimeZone(new Date(), 'America/Sao_Paulo', 'yyyy-MM-dd');
   const targetDate = new Date(brDate + 'T06:00:00-03:00');
 
-  await log('info', `Iniciando job multi-esporte para ${brDate}`);
+  await log('info', `Iniciando job multi-esporte para ${brDate} [template: ${template}]`);
 
-  // Garantir mascote
   await ensureMascote();
 
-  // 1. Buscar todos os esportes
   let events;
   try {
     events = await fetchAllSportsEvents(brDate);
@@ -34,7 +36,6 @@ export async function runDailyBannerJob(dateStr?: string): Promise<{
     return { success: false, message: 'Nenhum evento encontrado para hoje' };
   }
 
-  // 2. Salvar no banco (upsert)
   for (const event of events) {
     try {
       await supabaseAdmin.from('games').upsert(
@@ -58,23 +59,21 @@ export async function runDailyBannerJob(dateStr?: string): Promise<{
     } catch { /* continua */ }
   }
 
-  // 3. Gerar banners
   let postPath: string;
   let storiesPath: string | undefined;
   let postFilePath: string;
   try {
-    const post    = await generateBanner({ events, date: targetDate, format: 'post', title: '\uD83C\uDFC6 ESPORTES DE HOJE' });
-    const stories = await generateBanner({ events, date: targetDate, format: 'stories', title: '\uD83C\uDFC6 ESPORTES DE HOJE' });
+    const post    = await generateBanner({ events, date: targetDate, format: 'post',    template, title: '\uD83C\uDFC6 ESPORTES DE HOJE' });
+    const stories = await generateBanner({ events, date: targetDate, format: 'stories', template, title: '\uD83C\uDFC6 ESPORTES DE HOJE' });
     postPath     = post.publicPath;
     postFilePath = post.filePath;
     storiesPath  = stories.publicPath;
-    await log('success', `Banners gerados: ${postPath}`);
+    await log('success', `Banners gerados [${template}]: ${postPath}`);
   } catch (err: any) {
     await log('error', 'Erro ao gerar banner', { error: err.message });
     return { success: false, message: 'Erro ao gerar banner: ' + err.message };
   }
 
-  // 4. Registrar no banco
   const { data: record } = await supabaseAdmin
     .from('banners')
     .insert({
@@ -83,10 +82,10 @@ export async function runDailyBannerJob(dateStr?: string): Promise<{
       file_path_stories: storiesPath,
       games_count: events.length,
       status: 'generated',
+      template,
     })
     .select().single();
 
-  // 5. Enviar Telegram — passa o array de eventos (não events.length)
   try {
     const msgId = await sendBannerToTelegram(postFilePath!, targetDate, events);
     await supabaseAdmin.from('banners').update({
@@ -101,7 +100,6 @@ export async function runDailyBannerJob(dateStr?: string): Promise<{
     return { success: false, message: 'Erro Telegram: ' + err.message };
   }
 
-  // Estatísticas por esporte
   const bySport = events.reduce((acc, e) => {
     acc[e.sport] = (acc[e.sport] ?? 0) + 1;
     return acc;
@@ -109,7 +107,7 @@ export async function runDailyBannerJob(dateStr?: string): Promise<{
 
   return {
     success: true,
-    message: `\u2705 Banner gerado! ${events.length} eventos (${Object.entries(bySport).map(([k,v]) => `${k}:${v}`).join(', ')})`,
-    data: { postPath, storiesPath, eventsCount: events.length, bySport },
+    message: `\u2705 Banner [${template}] gerado! ${events.length} eventos (${Object.entries(bySport).map(([k,v]) => `${k}:${v}`).join(', ')})`,
+    data: { postPath, storiesPath, eventsCount: events.length, bySport, template },
   };
 }

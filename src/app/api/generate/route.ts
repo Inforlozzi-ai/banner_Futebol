@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
 import { runDailyBannerJob } from '@/lib/banner-service';
+import type { TemplateId } from '@/lib/banner-generator';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({})) as { date?: string; secret?: string };
-    const result = await runDailyBannerJob(body.date);
+    const body = await request.json().catch(() => ({})) as {
+      date?: string;
+      secret?: string;
+      template?: TemplateId;
+    };
+    const result = await runDailyBannerJob(body.date, body.template);
     return NextResponse.json(result, { status: result.success ? 200 : 500 });
   } catch (err: any) {
     return NextResponse.json({ success: false, message: err.message }, { status: 500 });
