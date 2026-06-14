@@ -4,6 +4,7 @@ import { sendBannerToTelegram } from './telegram';
 import { supabaseAdmin } from './supabase';
 import { log } from './logger';
 import { formatInTimeZone } from 'date-fns-tz';
+import { ensureMascote } from './setup-mascote';
 
 export async function runDailyBannerJob(dateStr?: string): Promise<{
   success: boolean;
@@ -14,6 +15,9 @@ export async function runDailyBannerJob(dateStr?: string): Promise<{
   const targetDate = new Date(brDate + 'T06:00:00-03:00');
 
   await log('info', `Iniciando job multi-esporte para ${brDate}`);
+
+  // Garantir mascote
+  await ensureMascote();
 
   // 1. Buscar todos os esportes
   let events;
@@ -82,9 +86,9 @@ export async function runDailyBannerJob(dateStr?: string): Promise<{
     })
     .select().single();
 
-  // 5. Enviar Telegram
+  // 5. Enviar Telegram — passa o array de eventos (não events.length)
   try {
-    const msgId = await sendBannerToTelegram(postFilePath!, targetDate, events.length);
+    const msgId = await sendBannerToTelegram(postFilePath!, targetDate, events);
     await supabaseAdmin.from('banners').update({
       telegram_message_id: msgId,
       telegram_sent_at: new Date().toISOString(),
